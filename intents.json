@@ -1,0 +1,117 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "name": "AI_ChatBot.ipynb",
+      "provenance": [],
+      "collapsed_sections": [],
+      "authorship_tag": "ABX9TyNE679v2FqRl1u3I3Z7z90U"
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "CW6VxNX4Sozl",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "import json \n",
+        "import io\n",
+        "import numpy as np \n",
+        "import tensorflow as tf\n",
+        "from tensorflow import keras \n",
+        "from tensorflow.keras.preprocessing.text import Tokenizer\n",
+        "from tensorflow.keras.preprocessing.sequence import pad_sequences\n",
+        "from sklearn.preprocessing import LabelEncoder\n",
+        "from google.colab import files\n",
+        "with open('intents.json') as file:\n",
+        "    data = json.load(file)"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "5FQcsV4-Slat",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "training_sentences = []\n",
+        "training_labels = []\n",
+        "labels = []\n",
+        "responses = []\n",
+        "for intent in data['intents']:\n",
+        "    for pattern in intent['patterns']:\n",
+        "        training_sentences.append(pattern)\n",
+        "        training_labels.append(intent['tag'])\n",
+        "    responses.append(intent['responses'])\n",
+        "    \n",
+        "    if intent['tag'] not in labels:\n",
+        "        labels.append(intent['tag'])\n",
+        "enc = LabelEncoder()\n",
+        "enc.fit(training_labels)\n",
+        "training_labels = enc.transform(training_labels)\n",
+        "vocab_size = 10000\n",
+        "embedding_dim = 16\n",
+        "max_len = 20\n",
+        "trunc_type = 'post'\n",
+        "oov_token = \"<OOV>\"\n",
+        "tokenizer = Tokenizer(num_words=vocab_size, oov_token=oov_token) \n",
+        "tokenizer.fit_on_texts(training_sentences)\n",
+        "word_index = tokenizer.word_index\n",
+        "sequences = tokenizer.texts_to_sequences(training_sentences)\n",
+        "padded = pad_sequences(sequences, truncating=trunc_type, maxlen=max_len)\n",
+        "classes = len(labels)\n",
+        "model = tf.keras.models.Sequential()\n",
+        "model.add(keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_len))\n",
+        "model.add(keras.layers.GlobalAveragePooling1D())\n",
+        "model.add(keras.layers.Dense(16, activation='relu'))\n",
+        "model.add(keras.layers.Dense(16, activation='relu'))\n",
+        "model.add(keras.layers.Dense(classes, activation='softmax'))\n",
+        "model.summary()\n",
+        "training_labels_final = np.array(training_labels)\n",
+        "EPOCHS = 500\n",
+        "model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])\n",
+        "history = model.fit(padded, training_labels_final, epochs=EPOCHS)\n",
+        "def check():\n",
+        "    print('start talking with bot, Enter quit to exit')\n",
+        "    while True:\n",
+        "        string = input('Enter: ')\n",
+        "        if string == 'quit': \n",
+        "          print(\"Bye!\")\n",
+        "          break\n",
+        "        result = model.predict(pad_sequences(tokenizer.texts_to_sequences([string]),\n",
+        "                                             truncating=trunc_type, maxlen=max_len))\n",
+        "        category = enc.inverse_transform([np.argmax(result)]) \n",
+        "        for i in data['intents']:\n",
+        "            if i['tag']==category:\n",
+        "                print(np.random.choice(i['responses']))\n",
+        "check()"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "B9XiWE6ZS1D-",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "tf.keras.models.save_model(model, \"z_bot\")"
+      ],
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
